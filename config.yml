@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ip
+  namespace: rcaldas
+data:
+  get-ip: |
+    from io import BytesIO
+    from http import HTTPStatus
+    from http.server import SimpleHTTPRequestHandler
+    import socketserver
+
+    class IpHandler(SimpleHTTPRequestHandler):
+        def do_GET(self):
+
+            # Get "X-Original-Forwarded-For" OR "X-Forwarded-For" OR "self.client_address[0]"
+            client_ip = self.headers.get('X-Original-Forwarded-For', self.headers.get('X-Forwarded-For', self.client_address[0]))
+
+            encoded = client_ip.encode('UTF-8', 'surrogateescape')
+            f = BytesIO()
+            f.write(encoded)
+            f.seek(0)
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-type", "text/html; charset=%s" % 'UTF-8')
+            self.send_header("Content-Length", str(len(encoded)))
+            self.end_headers()
+            self.copyfile(f, self.wfile)
+            f.close()
+
+    with socketserver.TCPServer(("", 8000), IpHandler) as httpd:
+        httpd.serve_forever()
